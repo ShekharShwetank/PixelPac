@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from miniVit import mViT
+from tensorflow.keras.applications import EfficientNetB5
 
 class UpSampleBN(tf.keras.Model):
     def __init__(self, skip_input, output_features):
@@ -109,6 +110,32 @@ if __name__ == '__main__':
     # x_tf = tf.random.normal([1, 16, 16, 64])        # [batch, height, width, channels]
     # skip_tf = tf.random.normal([1, 32, 32, 64])
     # model_tf = UpSampleBN(skip_input=128, output_features=64)  # 64 + 64 channels
+
+
+    # #------------------ test code for encoder ---------------------------------
+    # Load base model without top layers
+    base_model = EfficientNetB5(include_top=False, weights='imagenet', input_shape=(456, 456, 3))
+
+    # Optional: Remove last two layers manually (only if include_top=True; skipped here)
+    # base_model.layers.pop()  # classifier
+    # base_model.layers.pop()  # global_pool
+
+    # Wrap base_model in Encoder
+    encoder = Encoder(base_model)
+
+    # Dummy input
+    x = tf.random.normal((1, 456, 456, 3))
+
+    # Run forward pass
+    outputs = encoder(x)
+
+    # Print feature shapes
+    print("TensorFlow Feature Shapes:")
+    for i, f in enumerate(outputs):
+        print(f"Feature {i}: {f.shape}")
+    # #------------------ test code for encoder ---------------END--------------------
+
+
 
     # out_tf = model_tf(x_tf, skip_tf)
     # print("TensorFlow Output shape:", out_tf.shape)
