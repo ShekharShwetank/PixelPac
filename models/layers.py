@@ -2,6 +2,9 @@ import tensorflow as tf
 from tensorflow.keras import layers, Model
 import warnings
 warnings.filterwarnings("ignore")
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # '2' = filter out INFO and WARNING, show only ERROR
+
 
 class TransformerEncoderBlock(tf.keras.layers.Layer):
     def __init__(self, embedding_dim, num_heads, feed_forward_dim, dropout_rate=0.1):
@@ -56,23 +59,18 @@ class PatchTransformerEncoder(tf.keras.Model):
 
     def call(self, x):
         # x: [batch, C, H, W] expected in TF
-        print(f"Input shape : {x.shape}")
         x = self.embedding_convPxP(x)  # [batch, embedding_dim, H', W']
-        print(f"embedding shape : {x.shape}")
         batch_size, h, w, c = tf.shape(x)[0], tf.shape(x)[1], tf.shape(x)[2], tf.shape(x)[3]
 
         x = tf.reshape(x, [batch_size, h * w, c])  # [batch, tokens, embedding_dim]
         positional =  self.positional_encodings[:h * w]  # broadcast positional encodings
-        print(f"positionla embedding shape before: {positional.shape}")
 
         x += positional
         x = tf.transpose(x, perm=[1,0,2])
-        print(f"positionla embedding shape after : {positional.shape}")
 
         for layer in self.transformer_layers:
             x = layer(x)
         
-        print(f"transformer output shape: {x.shape}")
         return x  # [batch, tokens, embedding_dim]
     
 class PixelWiseDotProduct(tf.keras.Model):
@@ -97,22 +95,27 @@ if __name__ == "__main__":
     np.random.seed(42)
 
     # Dummy input: [batch, height, width, channels] => [1, 40, 40, 3]
-    dummy_input = tf.random.normal([1, 40, 40, 3])
+    dummy_input = tf.random.normal([5, 40, 40, 3])
 
     # Initialize encoder
     encoder = PatchTransformerEncoder(in_channels=3, patch_size=10, embedding_dim=128, num_heads=4, num_layers=4)
 
     # Forward pass
     encoded_output = encoder(dummy_input)  # Shape: [batch, tokens, embedding_dim]
+    S, N, E = encoded_output.shape
     print("Encoded output shape:", encoded_output.shape)
 
-    # Reshape encoded output into [batch, height, width, channels]
+    # Reshape encoded output into [batch, channels, height, width]
     # With patch size 10 and input size 40x40 → 4x4 = 16 tokens
-    encoded_reshaped = tf.reshape(encoded_output, [1, 4, 4, 128])
+    encoded_output = tf.transpose(encoded_output, perm=[1,2,0])
+    print(f"after permute : {encoded_output.shape}")
+    side = int(S**(0.5))
+
+    encoded_reshaped = tf.reshape(encoded_output, [N, side, side, E])
     print(f"encoded_reshaped : {encoded_reshaped.shape}")
 
     # Create dummy K: [batch, out_channels, embedding_dim]
-    K = tf.random.normal([1, 64, 128])
+    K = tf.random.normal([N, 64, E])
 
     # Initialize and apply pixel-wise dot product
     dot_product = PixelWiseDotProduct()
