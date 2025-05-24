@@ -1,70 +1,6 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
-
-# from .miniVit import mViT
-
-import tensorflow as tf
-from tensorflow.keras import layers, Model
-from layers import PatchTransformerEncoder, PixelWiseDotProduct
-
-class mViT(tf.keras.Model):
-    def __init__(self, in_channels, n_query_channels=128, patch_size=16, dim_out=256,
-                 embedding_dim=128, num_heads=4, norm='linear'):
-        super(mViT, self).__init__()
-
-        self.norm = norm
-        self.n_query_channels = n_query_channels
-
-        self.patch_transformer = PatchTransformerEncoder(
-            in_channels=in_channels,
-            patch_size=patch_size,
-            embedding_dim=embedding_dim,
-            num_heads=num_heads
-        )
-
-        self.dot_product_layer = PixelWiseDotProduct()
-
-        self.conv3x3 = layers.Conv2D(
-            filters=embedding_dim,
-            kernel_size=3,
-            strides=1,
-            padding='same'
-        )
-
-        self.regressor = tf.keras.Sequential([
-            layers.Dense(256),
-            layers.LeakyReLU(),
-            layers.Dense(256),
-            layers.LeakyReLU(),
-            layers.Dense(dim_out)
-        ])
-
-    def call(self, x):
-        # x: [batch, height, width, channels]
-        tgt = self.patch_transformer(tf.identity(x))  # [batch, tokens, embedding_dim]
-
-        x = self.conv3x3(x)  # [batch, height, width, embedding_dim]
-
-        regression_head = tgt[:, 0, :]  # [batch, embedding_dim]
-        queries = tgt[:, 1:self.n_query_channels + 1, :]  # [batch, n_query_channels, embedding_dim]
-
-        # Pixel-wise dot product: x is [batch, h, w, embedding_dim], queries is [batch, n_query_channels, embedding_dim]
-        range_attention_maps = self.dot_product_layer(x, queries)  # [batch, n_query_channels, h, w]
-
-        y = self.regressor(regression_head)  # [batch, dim_out]
-
-        if self.norm == 'linear':
-            y = tf.nn.relu(y)
-            eps = 0.1
-            y = y + eps
-        elif self.norm == 'softmax':
-            return tf.nn.softmax(y, axis=1), range_attention_maps
-        else:
-            y = tf.nn.sigmoid(y)
-
-        y = y / tf.reduce_sum(y, axis=1, keepdims=True)
-        return y, range_attention_maps
-
+from miniVit import mViT
 
 class UpSampleBN(tf.keras.Model):
     def __init__(self, skip_input, output_features):
@@ -80,8 +16,12 @@ class UpSampleBN(tf.keras.Model):
 
     def call(self, x, concat_with):
         x_up = tf.image.resize(x, size=tf.shape(concat_with)[1:3], method='bilinear')
+        # print(f"x_up shape : {x_up.shape}")
         x_concat = tf.concat([x_up, concat_with], axis=-1)  # TF uses channels_last
-        return self.conv_block(x_concat)
+        # print(f"x_concat : {x_concat.shape}")
+        # return self.conv_block(x_concat)
+        output = self.conv_block(x_concat)
+        return output
 
 
 class DecoderBN(tf.keras.Model):
@@ -165,11 +105,18 @@ class UnetAdaptiveBins(tf.keras.Model):
     
 
 if __name__ == '__main__':
-    model = UnetAdaptiveBins.build(100)
+    # #------------------ test code for upsample block 
+    # x_tf = tf.random.normal([1, 16, 16, 64])        # [batch, height, width, channels]
+    # skip_tf = tf.random.normal([1, 32, 32, 64])
+    # model_tf = UpSampleBN(skip_input=128, output_features=64)  # 64 + 64 channels
 
-    x = tf.random.normal([2, 480, 640, 3])
-    print(model.adaptive_bins_layer)
+    # out_tf = model_tf(x_tf, skip_tf)
+    # print("TensorFlow Output shape:", out_tf.shape)
+    
+
+    # model = UnetAdaptiveBins.build(100)
+    # x = tf.random.normal([2, 480, 640, 3])
+    # print(model.adaptive_bins_layer)
     # bins, pred = model(x)
-
     # print("Bin edges shape:", bins.shape)
     # print("Prediction shape:", pred.shape)
