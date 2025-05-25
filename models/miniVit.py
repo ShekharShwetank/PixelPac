@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras import layers, Model
 from layers import PatchTransformerEncoder, PixelWiseDotProduct
-
+import time
 class mViT(tf.keras.Model):
     def __init__(self, in_channels, n_query_channels=128, patch_size=16, dim_out=256,
                  embedding_dim=128, num_heads=4, norm='linear'):
@@ -38,21 +38,21 @@ class mViT(tf.keras.Model):
     def call(self, x):
         # x: [batch, height, width, channels]
         tgt = self.patch_transformer(tf.identity(x))  # [token, batch, embedding_dim]
-        print(f"tgt shape : {tgt.shape}")
+        
         x = self.conv3x3(x)  # [batch, height, width, embedding_dim]
-        print(f"x shape is : {x.shape}")
+        
         regression_head = tgt[0, :, :]  # [batch, embedding_dim]
-        print(f"regression_head : {regression_head.shape}")
+        
         queries = tgt[ 1:self.n_query_channels + 1, :]  # [batch, n_query_channels, embedding_dim]
-        print(f"queries : {queries.shape}")
+        
         queries = tf.transpose(queries, perm=[1,0,2])
-        print(f"after permute : {queries.shape}")
+        
         # Pixel-wise dot product: x is [batch, h, w, embedding_dim], queries is [batch, n_query_channels, embedding_dim]
         range_attention_maps = self.dot_product_layer(x, queries)  # [batch, n_query_channels, h, w]
-        print(f"range_attention_maps : {range_attention_maps.shape}")
+        
 
         y = self.regressor(regression_head)  # [batch, dim_out]
-        print(f"y shape : {y.shape}")
+        
         
         if self.norm == 'linear':
             y = tf.nn.relu(y)
@@ -73,8 +73,8 @@ if __name__ == "__main__":
     model = mViT(in_channels=3, patch_size=10)
 
     dummy_input = tf.random.normal([1, 40, 40, 3])  # [batch, height, width, channels]
-    
+    t = time.time()
     output, attn = model(dummy_input)
-
+    print(time.time()-t)
     print("Output shape (probabilities):", output.shape)      
     print("Attention map shape:", attn.shape)                 
