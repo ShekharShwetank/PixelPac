@@ -1,2 +1,0 @@
-# PixelPac
-For CATERPILLAR HACKATHON
